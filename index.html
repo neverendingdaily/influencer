@@ -81,6 +81,12 @@ h1 em{font-style:normal;color:var(--accent);}
 .apibar-tip{font-size:11.5px;color:var(--muted);}
 .apibar-tip a{color:var(--accent);text-decoration:none;}
 .apibar-tip a:hover{text-decoration:underline;}
+.apibar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto;}
+.apibar-sep{color:var(--muted);font-size:12px;}
+.btn-save-key{display:flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;border:1.5px solid var(--accent);background:var(--acc-lt);color:var(--accent);font-family:var(--mf);font-size:11px;font-weight:700;cursor:pointer;transition:all .18s;white-space:nowrap;flex-shrink:0;}
+.btn-save-key:hover{background:var(--accent);color:#fff;}
+.btn-save-key.saved{border-color:var(--green);background:var(--glt);color:var(--green);cursor:default;}
+.btn-save-key svg{flex-shrink:0;}
 
 /* ── Tabs ── */
 .tabs-nav{display:flex;border-bottom:1.5px solid var(--border);margin-top:28px;animation:fadeUp .5s .2s ease-out both;}
@@ -277,7 +283,24 @@ kbd{display:inline-block;background:var(--surface3);border:1px solid var(--borde
     Gemini API Key
   </span>
   <input type="password" id="apiKey" placeholder="AIzaSy..." autocomplete="off" oninput="onKeyIn()">
-  <span class="apibar-tip">取得: <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a> · ブラウザのみに保存</span>
+  <button class="btn-save-key" id="saveKeyBtn" onclick="saveKey()">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    保存
+  </button>
+  <div class="apibar-right">
+    <span class="apibar-tip">取得: <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a></span>
+    <span class="apibar-sep">·</span>
+    <span class="apibar-lbl">モデル</span>
+    <div class="sel-wrap" style="min-width:230px">
+      <select id="modelSel" onchange="onModelChange()" style="padding:7px 32px 7px 10px;font-size:11px;border-radius:7px;">
+        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite（推奨・無料）</option>
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+        <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+      </select>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;right:9px;"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+  </div>
 </div>
 
 <!-- TABS NAV -->
@@ -490,15 +513,32 @@ const FPRMP={
   long:n=>`【YouTube 長尺動画台本】10分以上（3,000〜5,000文字）。フリートーク・脱線OK。構成:[OP]→[本題①]→[脱線エピソード]→[本題②]→[まとめ・オチ]→[エンディング一言]。「えー」「あのー」など話し言葉も適宜混ぜる。${n}らしい独自哲学・自虐を随所に。そのまま読み上げられる形式。`,
 };
 const HK='cps_hist_v4';
-let curTab='generate',selFmtId='twitter',curRes='';
+let curTab='generate',selFmtId='twitter',curRes='',selModel='gemini-2.5-flash-lite';
 
 /* ═══ INIT ═══ */
 addEventListener('DOMContentLoaded',()=>{
   const k=localStorage.getItem('cps_gkey');
   if(k) document.getElementById('apiKey').value=k;
-  document.getElementById('apiKey').addEventListener('input',e=>{localStorage.setItem('cps_gkey',e.target.value);updBtn();});
+  const sm=localStorage.getItem('cps_model');
+  if(sm) { document.getElementById('modelSel').value=sm; selModel=sm; }
   updBtn();renderSel();renderBadge();
 });
+
+/* ═══ SAVE KEY ═══ */
+function saveKey(){
+  const k=document.getElementById('apiKey').value.trim();
+  if(!k){toast('⚠ APIキーを入力してください');return;}
+  localStorage.setItem('cps_gkey',k);
+  const btn=document.getElementById('saveKeyBtn');
+  btn.classList.add('saved');
+  btn.innerHTML='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> 保存済み';
+  updBtn();
+  setTimeout(()=>{btn.classList.remove('saved');btn.innerHTML='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> 保存';},2500);
+}
+function onModelChange(){
+  selModel=document.getElementById('modelSel').value;
+  localStorage.setItem('cps_model',selModel);
+}
 
 /* ═══ TAB SWITCH — crossfade ═══ */
 function switchTab(t){
@@ -558,7 +598,7 @@ async function generate(){
   const usr=`テーマ: 「${theme}」\n\nこのテーマについて、${creator.name}として語ってください。`;
 
   try{
-    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,{
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selModel}:generateContent?key=${apiKey}`,{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         system_instruction:{parts:[{text:sys}]},
